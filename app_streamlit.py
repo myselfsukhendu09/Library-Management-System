@@ -1,129 +1,62 @@
+
 import streamlit as st
 import pandas as pd
-from backend import LibraryBackend
-from datetime import datetime
+import backend as db
+import plotly.express as px
 
 # Page config
-st.set_page_config(page_title="BiblioTech Dash", page_icon="📚", layout="wide")
+st.set_page_config(page_title="BiblioTech | Library Manager", page_icon="📚", layout="wide")
 
-# Custom CSS
-st.markdown("""
-<style>
-    .main { background-color: #f0f2f6; }
-    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-</style>
-""", unsafe_allow_html=True)
+# Init DB
+db.init_db()
 
-lib = LibraryBackend()
+st.title("📚 BiblioTech Library Management")
+st.markdown("---")
 
-st.title("📚 BiblioTech Dashboard")
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Catalog", "Members", "Circulation", "Insights"])
+# Metrics
+total_books, unique_titles = db.get_stats()
+m1, m2 = st.columns(2)
+m1.metric("Total Books in Stock", int(total_books))
+m2.metric("Unique Titles", int(unique_titles))
 
-if page == "Catalog":
-    st.header("📖 Library Catalog")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("Add New Book")
-        title = st.text_input("Title")
+st.markdown("---")
+
+# Catalog
+st.subheader("📖 Current Catalog")
+catalog_df = db.get_catalog()
+st.dataframe(catalog_df, use_container_width=True)
+
+# Charts
+st.subheader("📊 Collection Insights")
+fig = px.bar(catalog_df, x='title', y='stock', color='author', title="Stock Level by Title")
+st.plotly_chart(fig, use_container_width=True)
+
+# Admin Operations
+st.sidebar.header("Admin Actions")
+action = st.sidebar.selectbox("Select Operation", ["Add New Book", "Search Catalog"])
+
+if action == "Add New Book":
+    st.sidebar.subheader("Register Book")
+    with st.sidebar.form("add_book"):
+        title = st.text_input("Book Title")
         author = st.text_input("Author")
-        isbn = st.text_input("ISBN")
-        cat = st.selectbox("Category", ["Fiction", "Non-Fiction", "Self-Help", "Tech", "Science"])
-        qty = st.number_input("Total Quantity", min_value=1, value=1)
-        if st.button("Add to Catalog"):
-            success, msg = lib.add_book(title, author, isbn, cat, qty)
-            if success: st.success(msg)
-            else: st.error(msg)
-            
-    with col2:
-        st.subheader("Book Inventory")
-        query = st.text_input("Search by title or author")
-        if query:
-            books = lib.search_books(query)
-        else:
-            books = lib.get_books()
+        stock = st.number_input("Opening Stock", min_value=1, step=1)
+        submit = st.form_submit_button("Add to Collection")
         
-        if books:
-            df = pd.DataFrame(books, columns=["ID", "Title", "Author", "ISBN", "Category", "Total", "Available"])
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("No books found.")
+        if submit:
+            import sqlite3
+            conn = sqlite3.connect('library.db')
+            c = conn.cursor()
+            c.execute("INSERT INTO books (title, author, stock) VALUES (?, ?, ?)", (title, author, stock))
+            conn.commit()
+            conn.close()
+            st.toast(f"Successfully added {title}!")
+            st.rerun()
 
-elif page == "Members":
-    st.header("👥 Member Management")
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("Register Member")
-        name = st.text_input("Full Name")
-        email = st.text_input("Email Address")
-        if st.button("Register"):
-            success, msg = lib.add_member(name, email)
-            if success: st.success(msg)
-            else: st.error(msg)
-            
-    with col2:
-        st.subheader("Active Members")
-        members = lib.get_members()
-        if members:
-            df = pd.DataFrame(members, columns=["ID", "Name", "Email", "Joined Date"])
-            st.dataframe(df, use_container_width=True)
-
-elif page == "Circulation":
-    st.header("🔄 Circulation & Borrowing")
-    
-    col1, col2 = st.columns([1, 2])
-    
-    with col1:
-        st.subheader("Issue Book")
-        books = lib.get_books()
-        members = lib.get_members()
-        
-        book_opt = {f"{b[1]} (ISBN: {b[3]})": b[0] for b in books if b[6] > 0}
-        member_opt = {f"{m[1]} ({m[2]})": m[0] for m in members}
-        
-        sel_book = st.selectbox("Select Book", list(book_opt.keys()))
-        sel_member = st.selectbox("Select Member", list(member_opt.keys()))
-        
-        if st.button("Confirm Issue"):
-            success, msg = lib.issue_book(book_opt[sel_book], member_opt[sel_member])
-            if success: st.success(msg)
-            else: st.error(msg)
-            
-    with col2:
-        st.subheader("Transaction History")
-        trans = lib.get_transactions()
-        if trans:
-            df = pd.DataFrame(trans, columns=["ID", "Book", "Member", "Issued", "Returned", "Status"])
-            st.dataframe(df, use_container_width=True)
-            
-            st.divider()
-            st.subheader("Process Return")
-            issued_trans = {f"{t[1]} borrowed by {t[2]} (ID: {t[0]})": t[0] for t in trans if t[5] == 'Issued'}
-            if issued_trans:
-                tid = st.selectbox("Select Transaction", list(issued_trans.keys()))
-                if st.button("Confirm Return"):
-                    success, msg = lib.return_book(issued_trans[tid])
-                    if success: st.success(msg)
-                    else: st.error(msg)
-            else:
-                st.info("No active borrowings.")
-
-elif page == "Insights":
-    st.header("📊 Library Insights")
-    books = lib.get_books()
-    members = lib.get_members()
-    trans = lib.get_transactions()
-    
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Total Books", sum(b[5] for b in books))
-    m2.metric("Active Members", len(members))
-    m3.metric("Checked Out", len([t for t in trans if t[5] == 'Issued']))
-    
-    st.divider()
-    if books:
-        st.subheader("Availability Distribution")
-        df_books = pd.DataFrame(books, columns=["ID", "Title", "Author", "ISBN", "Category", "Total", "Available"])
-        st.bar_chart(df_books.set_index("Title")["Available"])
+elif action == "Search Catalog":
+    query = st.sidebar.text_input("Search Title or Author")
+    if query:
+        results = catalog_df[catalog_df['title'].str.contains(query, case=False) | 
+                             catalog_df['author'].str.contains(query, case=False)]
+        st.write("Search Results:")
+        st.dataframe(results)

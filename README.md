@@ -23,16 +23,12 @@ A professional, dual-interface library management system featuring a Flask web a
 pip install flask streamlit pandas
 ```
 
-### 2. Run Flask Web App
-```bash
-python app_flask.py
-```
-Visit `http://127.0.0.1:5001` in your browser.
-
-### 3. Run Streamlit Dashboard
+### 2. Launch Application
+To start the library management portal:
 ```bash
 streamlit run app_streamlit.py
 ```
+*Note: This portal handles both catalog browsing and collection management.*
 
 ## 📁 Repository Structure
 - `app_flask.py`: Flask application server.
