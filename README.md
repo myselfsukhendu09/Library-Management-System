@@ -31,8 +31,7 @@ streamlit run app_streamlit.py
 *Note: This portal handles both catalog browsing and collection management.*
 
 ## 📁 Repository Structure
-- `app_flask.py`: Flask application server.
-- `app_streamlit.py`: Streamlit dashboard application.
+- `app_streamlit.py`: Main Streamlit portal.
 - `backend.py`: Core logic and database operations.
-- `templates/`: Flask HTML templates.
+- `Library_Management_System.ipynb`: Development notebook.
 - `library.db`: SQLite database (auto-generated).
